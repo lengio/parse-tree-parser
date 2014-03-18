@@ -1,6 +1,16 @@
 # A simple tree-node class:
 class Node
-  attr_accessor :children, :parent, :type, :content
+  attr_accessor :children, :parent, :type, :content, :index
+
+  def initialize
+    self.children = []
+    self.parent = nil
+    self.type = ''
+    self.content = ''
+    self.index = nil
+  end
+
+  RELATION_TYPES = %w(NP VP ADJP PP ADVP)
 
   # Iterative lexer and descent parser in one:
   def self.from_parse_tree(string)
@@ -22,15 +32,13 @@ class Node
       end
     end
 
-    return cursor.children[0]
-  end
-
-  def initialize
-    self.children, self.type, self.content = [], '', ''
+    root = cursor.children[0]
+    root.index_content_nodes!
+    root
   end
 
   def inspect(depth = 0)
-    "#{"   " * depth}(#{self.type}) #{self.content}\n" +
+    "#{"   " * depth}(#{self.type}) #{self.content} [#{self.index}]\n" +
       children.map { |child| child.inspect(depth + 1) }.join
   end
 
@@ -39,16 +47,23 @@ class Node
   end
 
   def phrases
-    ((self.is_phrase? ? [self] : []) + children.map(&:phrases))
-      .flatten
+    (self.phrase? ? [self] : []) + children.flat_map(&:phrases)
   end
 
-  def is_phrase?
-    %w{NP VP ADJP PP}.include? self.type
+  def phrase?
+    RELATION_TYPES.include?(self.type)
+  end
+
+  def index_content_nodes!(index = 0)
+    unless self.content.nil? || self.content.empty?
+      self.index = index
+      index += 1
+    end
+    self.children.each { |child| index = child.index_content_nodes!(index) }
+    index
+  end
+
+  def indices_of_content_nodes
+    (self.index ? [self.index] : []) + children.flat_map(&:indices_of_content_nodes)
   end
 end
-
-
-# Usage test:
-puts Node.from_parse_tree('(ROOT (S (NP (PRP I)) (VP (VBD put) (NP (DT the) (NN book)) (PRT (RP down)) (PP (IN on) (NP (DT the) (NN coffee) (NN table)))) (. .)))').inspect
-puts Node.from_parse_tree('(ROOT (S (NP (NNP Walter) (NNP White)) (VP (VBD was) (ADJP (VBN annoyed) (PP (IN by) (NP (DT the) (VBG buzzing) (NN fly))))) (. .)))').phrases
